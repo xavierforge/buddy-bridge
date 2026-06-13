@@ -1,16 +1,29 @@
 #!/usr/bin/env bash
-# Remove the LaunchAgent and all buddy-gate hooks. Leaves the built binaries
-# and your settings backups in place.
+# Remove the background service (launchd on macOS, systemd --user on Linux) and
+# all buddy-gate hooks. Leaves the built binaries and your settings backups in
+# place.
 set -euo pipefail
 
 LABEL="com.buddy.bridged"
-PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+UNIT="buddy-bridged.service"
 SETTINGS="$HOME/.claude/settings.json"
-GATE_BASENAME="buddy-gate"
+OS="$(uname -s)"
 
-echo "==> Unloading LaunchAgent"
-launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
-rm -f "$PLIST"
+echo "==> Removing background service ($OS)"
+case "$OS" in
+  Darwin)
+    launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
+    rm -f "$HOME/Library/LaunchAgents/$LABEL.plist"
+    ;;
+  Linux)
+    systemctl --user disable --now "$UNIT" 2>/dev/null || true
+    rm -f "$HOME/.config/systemd/user/$UNIT"
+    systemctl --user daemon-reload 2>/dev/null || true
+    ;;
+  *)
+    echo "   Unknown OS '$OS' — stop the daemon manually if it is running." >&2
+    ;;
+esac
 
 if [ -f "$SETTINGS" ]; then
   echo "==> Removing buddy-gate hooks from $SETTINGS"
@@ -31,4 +44,4 @@ if [ -f "$SETTINGS" ]; then
 fi
 
 rm -f "$HOME/.claude/buddy-bridge.sock"
-echo "==> Done. Re-enable the Stick in the Claude desktop app's Hardware Buddy window if you want it back."
+echo "==> Done. Re-pair the Stick (Claude desktop app on macOS, or bluetoothctl on Linux) if you want it back."

@@ -33,7 +33,8 @@ BLE protocol the desktop app does (see the firmware repo's
                               M5StickC Plus S3
 ```
 
-* **`bridged`** — a background daemon (LaunchAgent, autostarts at login). It
+* **`bridged`** — a background daemon (launchd LaunchAgent on macOS, systemd
+  `--user` service on Linux; autostarts at login). It
   owns the one BLE connection to the Stick, sends keepalive snapshots, pushes
   permission prompts and waits for the button press, and tracks per-session
   run state so the device knows when a task is running, finished, or was
@@ -62,9 +63,23 @@ terminal y/n prompt. You're never blocked by missing hardware.
 * **Stick reboots** don't cleanly end the BLE link on macOS — `is_connected`
   stays true, writes still resolve, the notification stream stays open. The
   firmware **acks every line it receives**, so silence is the one liveness
-  signal that can't be faked: when acks stop, the daemon exits and launchd's
-  `KeepAlive` brings up a fresh process with a clean CoreBluetooth stack,
-  reconnecting in ~2s. No manual restart needed.
+  signal that can't be faked: when acks stop, the daemon exits and the service
+  manager (launchd `KeepAlive` / systemd `Restart=always`) brings up a fresh
+  process with a clean BLE stack, reconnecting in ~2s. No manual restart needed.
+  (The `is_connected`-stays-true quirk is CoreBluetooth-specific; the ack-based
+  liveness check works regardless of backend.)
+
+## Platform support
+
+- **macOS** — verified, primary development platform.
+- **Linux** — implemented but not yet hardware-tested. `install.sh` auto-detects
+  the OS and installs a systemd `--user` service; the code is portable
+  (Unix-socket IPC, and `btleplug` pulls its BlueZ backend on Linux, confirmed
+  via the dependency tree). Nothing has run against a real BlueZ stack yet — the
+  likely rough edge is first-time pairing (use `bluetoothctl`). Reports welcome.
+- **Windows** — not supported. Different BLE stack (WinRT), no Unix domain
+  sockets, and a different daemon model — it would be a separate implementation,
+  not a port. PRs welcome.
 
 ## Install
 
@@ -72,27 +87,45 @@ terminal y/n prompt. You're never blocked by missing hardware.
 BUDDY_OWNER="YourName" ./install.sh
 ```
 
-This builds the binaries, installs the LaunchAgent, and registers all five
-hooks in `~/.claude/settings.json` (a timestamped backup is made first). It is
-idempotent — safe to re-run after editing the code; existing buddy-gate
-entries are de-duped and unrelated hooks are preserved.
+This builds the binaries, installs a per-user background service, and registers
+all five hooks in `~/.claude/settings.json` (a timestamped backup is made
+first). The installer detects your OS — **macOS** (launchd LaunchAgent) or
+**Linux** (systemd `--user` service). It is idempotent — safe to re-run after
+editing the code; existing buddy-gate entries are de-duped and unrelated hooks
+are preserved.
+
+> On Linux you also need BlueZ at runtime and `libdbus-1-dev` + `pkg-config` to
+> build (e.g. `apt install bluez libdbus-1-dev pkg-config`).
 
 > New hooks load when a Claude Code session **starts**, so open a fresh
 > terminal session for them to take effect.
 
-Then, once:
+Then pair the Stick once. Only one BLE central can own it at a time, so first
+**forget it** wherever it's currently bonded (e.g. the Claude desktop app's
+Hardware Buddy window). Then:
 
-1. **Forget the Stick** in the Claude desktop app's Hardware Buddy window —
-   only one BLE central can own it at a time.
-2. **Wake the Stick.** macOS pops a passkey dialog on first connect; type the
-   6-digit code shown on the Stick screen. The bond is remembered after that.
-3. **Grant Bluetooth** if macOS asks (System Settings → Privacy & Security →
-   Bluetooth). The binary is unsigned, so macOS re-asks after each rebuild —
-   click Allow once per rebuild.
-4. Confirm it's up: `tail -f /tmp/buddy-bridged.log` → look for `[ble] session up`.
+* **macOS** — wake the Stick; macOS pops a passkey dialog on first connect, type
+  the 6-digit code shown on the Stick screen. Grant Bluetooth if asked (System
+  Settings → Privacy & Security → Bluetooth). The unsigned binary's identity
+  changes on rebuild, so macOS re-asks once per rebuild — click Allow.
+* **Linux** — pair via `bluetoothctl`, typing the 6-digit code from the Stick:
 
-Now run a Bash command needing approval in any terminal Claude Code session —
-it shows on the Stick. **A = approve, B = deny.**
+  ```
+  bluetoothctl
+    scan on            # wait for "Claude-XXXX", note its MAC
+    pair  AA:BB:CC:DD:EE:FF
+    trust AA:BB:CC:DD:EE:FF
+    quit
+  ```
+
+  The service runs only while you're logged in; `sudo loginctl enable-linger
+  "$USER"` keeps it alive across logout/reboot.
+
+Confirm it's up: `tail -f /tmp/buddy-bridged.log` → look for `[ble] session up`
+(on Linux you can also use `journalctl --user -u buddy-bridged -f`).
+
+Now run a command needing approval in any terminal Claude Code session — it
+shows on the Stick. **A = approve, B = deny.**
 
 ## Scope / tradeoff
 
@@ -112,9 +145,9 @@ The other hooks (run state, tokens) are session-wide and not gated.
 ./uninstall.sh
 ```
 
-Removes the LaunchAgent and all five hooks (with a backup), preserving any
-unrelated hooks that shared an event. Re-enable the Stick in the desktop app
-if you want the original behavior back.
+Removes the background service (launchd or systemd) and all five hooks (with a
+backup), preserving any unrelated hooks that shared an event. Re-pair the Stick
+(Claude desktop app on macOS, or `bluetoothctl` on Linux) if you want it back.
 
 ## Troubleshooting
 
