@@ -13,7 +13,8 @@ nothing reaches the Stick. This bridge fills that gap: it becomes the BLE
 central in the desktop app's place and feeds it from Claude Code hooks.
 
 The Stick firmware is **not modified** — this speaks the same Hardware Buddy
-BLE protocol the desktop app does (see `claude-desktop-buddy-s3/REFERENCE.md`).
+BLE protocol the desktop app does (see the firmware repo's
+[REFERENCE.md](https://github.com/xavierforge/claude-desktop-buddy-s3/blob/main/REFERENCE.md)).
 
 ## How it works
 
