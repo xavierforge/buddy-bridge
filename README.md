@@ -1,4 +1,6 @@
 # buddy-bridge
+<img width="500" alt="buddy-bridge" src="https://github.com/user-attachments/assets/a75d8b86-f989-4fa2-8579-529b5650397a" />
+
 
 Push **terminal Claude Code** activity to a Claude desk-pet (M5StickC Plus
 **S3**): approve permission prompts from the device's physical buttons, and
