@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build buddy-bridge, install the daemon as a login LaunchAgent, and register
-# the buddy-gate PreToolUse hook in ~/.claude/settings.json (Bash only).
+# the buddy-gate PermissionRequest hook in ~/.claude/settings.json (all tools).
 #
 # Idempotent: safe to re-run after editing the code. Override the owner name
 # shown on the device with:  BUDDY_OWNER="Felix" ./install.sh
@@ -43,7 +43,7 @@ launchctl bootstrap "gui/$(id -u)" "$PLIST"
 launchctl kickstart -k "gui/$(id -u)/$LABEL" 2>/dev/null || true
 
 echo "==> Registering hooks in $SETTINGS"
-echo "    PreToolUse:Bash (button gate), Stop (stats + run stop),"
+echo "    PermissionRequest:* (button gate, all tools), Stop (stats + run stop),"
 echo "    UserPromptSubmit (run start), PostToolUse (run heartbeat),"
 echo "    SessionEnd (run stop on exit)"
 mkdir -p "$HOME/.claude"
@@ -58,9 +58,16 @@ jq --arg cmd "$GATE" '
   def entry(t): { hooks: [ { type: "command", command: $cmd, timeout: t } ] };
 
   .hooks = (.hooks // {})
-  # PreToolUse (Bash) — gate the command on the device button.
-  | .hooks.PreToolUse = (dedupe(.hooks.PreToolUse)
-      + [ entry(60) + { matcher: "Bash" } ])
+  # PermissionRequest (all tools) — gate the call on the device button. This
+  # fires only when the call actually needs approval (not already allow-listed),
+  # so the matcher can safely be "*": auto-approved calls never reach here, and
+  # the firmware renders whatever tool name we send (Bash, Edit, Write, …).
+  | .hooks.PermissionRequest = (dedupe(.hooks.PermissionRequest)
+      + [ entry(60) + { matcher: "*" } ])
+  # Drop any stale PreToolUse gate from older installs (we moved to
+  # PermissionRequest); leave other PreToolUse hooks untouched.
+  | .hooks.PreToolUse = dedupe(.hooks.PreToolUse)
+  | (if (.hooks.PreToolUse | length) == 0 then del(.hooks.PreToolUse) else . end)
   # Stop — token totals + run-state stop (plays the done jingle).
   | .hooks.Stop = (dedupe(.hooks.Stop) + [ entry(10) ])
   # UserPromptSubmit — run-state start (starts the BGM).
@@ -77,7 +84,7 @@ cat <<DONE
 ==> Installed.
 
 Daemon : $BRIDGED  (LaunchAgent $LABEL, autostarts at login)
-Hook   : $GATE  (PreToolUse / Bash, timeout 60s)
+Hook   : $GATE  (PermissionRequest / * all tools, timeout 60s)
 Logs   : /tmp/buddy-bridged.log
 Backup : $SETTINGS.bak.*
 

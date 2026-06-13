@@ -4,8 +4,9 @@ edition.workspace = true
 version.workspace = true
 license.workspace = true
 
-# The PreToolUse hook client. Deliberately std-only (no async runtime) so the
-# cold-start cost on every Bash tool call is a few milliseconds, not tens.
+# The PermissionRequest hook client. Deliberately std-only (no async runtime)
+# so the cold-start cost on every gated tool call is a few milliseconds, not
+# tens.
 [[bin]]
 name = "buddy-gate"
 path = "src/main.rs"

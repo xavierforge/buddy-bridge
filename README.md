@@ -43,7 +43,7 @@ BLE protocol the desktop app does (see the firmware repo's
 
   | Hook | What it sends |
   |------|---------------|
-  | `PreToolUse` (Bash) | asks the daemon for an A/B decision, blocks on it |
+  | `PermissionRequest` (any tool) | asks the daemon for an A/B decision, blocks on it |
   | `UserPromptSubmit` | turn **started** → device starts BGM |
   | `Stop` | turn **finished** → token totals + done jingle |
   | `PostToolUse` | heartbeat → keeps the turn marked alive |
@@ -96,11 +96,13 @@ it shows on the Stick. **A = approve, B = deny.**
 
 ## Scope / tradeoff
 
-The button gate fires on **all Bash tool calls** while the Stick is connected —
-it runs before Claude Code's permission engine, so it can't tell which calls
-would otherwise have been auto-allowed. To narrow or widen, edit the `matcher`
-for `PreToolUse` in `~/.claude/settings.json` (`"Bash"` → e.g.
-`"Bash|Write|Edit"`, or `"*"`).
+The button gate fires on **any tool call that actually needs approval** — it
+runs on `PermissionRequest`, the hook Claude Code raises only when it would
+otherwise pop a permission prompt, so anything already allow-listed in your
+settings skips the Stick entirely. The default `matcher` is `"*"` (all tools);
+the firmware shows whichever tool name arrives (`Bash`, `Edit`, `Write`, …). To
+narrow it, edit the `matcher` for `PermissionRequest` in
+`~/.claude/settings.json` (e.g. `"Bash"`, or `"Bash|Write|Edit"`).
 
 The other hooks (run state, tokens) are session-wide and not gated.
 

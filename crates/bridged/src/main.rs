@@ -3,7 +3,7 @@
 //!
 //! It plays the role the Claude desktop app plays for the device: it is the
 //! single BLE central, holds a persistent connection to the Stick, sends
-//! keepalive snapshots, and — when a `PreToolUse` hook asks — pushes a
+//! keepalive snapshots, and — when a `PermissionRequest` hook asks — pushes a
 //! `prompt` and waits for the physical A/B button decision to come back.
 //!
 //! Architecture:

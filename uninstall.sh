@@ -14,7 +14,7 @@ rm -f "$PLIST"
 
 if [ -f "$SETTINGS" ]; then
   echo "==> Removing buddy-gate hooks from $SETTINGS"
-  echo "    (PreToolUse, Stop, UserPromptSubmit, PostToolUse, SessionEnd)"
+  echo "    (PermissionRequest, Stop, UserPromptSubmit, PostToolUse, SessionEnd)"
   cp "$SETTINGS" "$SETTINGS.bak.$(date +%s)"
   tmp="$(mktemp)"
   jq '
@@ -25,8 +25,8 @@ if [ -f "$SETTINGS" ]; then
                     | any(test("buddy-gate"))) | not) ]
         | (if (.hooks[k] | length) == 0 then del(.hooks[k]) else . end)
       else . end;
-    strip("PreToolUse") | strip("Stop") | strip("UserPromptSubmit")
-    | strip("PostToolUse") | strip("SessionEnd")
+    strip("PermissionRequest") | strip("PreToolUse") | strip("Stop")
+    | strip("UserPromptSubmit") | strip("PostToolUse") | strip("SessionEnd")
   ' "$SETTINGS" > "$tmp" && mv "$tmp" "$SETTINGS"
 fi
 

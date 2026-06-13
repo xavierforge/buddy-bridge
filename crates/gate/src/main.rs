@@ -1,16 +1,21 @@
 //! buddy-gate — the Claude Code hook client for the desk-pet bridge. One
-//! binary, two jobs, dispatched on `hook_event_name`:
+//! binary, three jobs, dispatched on `hook_event_name`:
 //!
-//!   * PreToolUse (Bash) — forward the command to the local `bridged` daemon,
-//!     block until the Stick's A/B button comes back, emit the decision.
-//!   * Stop — read the session transcript, total this session's output tokens
-//!     (cumulative + today), and report them to the daemon so the device's
-//!     token counters reflect the currently-connected sessions.
+//!   * PermissionRequest (any tool) — fired only when the call actually needs
+//!     approval (not already allowed); forward it to the local `bridged`
+//!     daemon, block until the Stick's A/B button comes back, emit the
+//!     decision.
+//!   * Stop / SubagentStop — read the session transcript, total this session's
+//!     output tokens (cumulative + today), and report them to the daemon so
+//!     the device's token counters reflect the currently-connected sessions.
+//!   * UserPromptSubmit / PostToolUse / Stop / SessionEnd — report turn
+//!     lifecycle (start / heartbeat / stop / exit) so the device knows when a
+//!     task is running (BGM) and when it just finished (done jingle).
 //!
-//! Fail-open everywhere: any error => print nothing, exit 0. For PreToolUse
-//! that means Claude Code's normal terminal y/n prompt takes over; for Stop it
-//! just means the token counter doesn't update this turn. You can always work
-//! without the device on hand.
+//! Fail-open everywhere: any error => print nothing, exit 0. For
+//! PermissionRequest that means Claude Code's normal terminal y/n prompt takes
+//! over; for the rest it just means the device misses one update this turn.
+//! You can always work without the device on hand.
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::UnixStream;
@@ -46,7 +51,11 @@ fn main() {
         // expire turns that stopped beating (interrupted mid-run).
         "SessionEnd" => report_run(&payload, "end"), // stop WITHOUT the done jingle
         "PostToolUse" => report_run(&payload, "beat"),
-        _ => gate_bash(&payload),
+        // PermissionRequest fires only when a permission dialog would appear —
+        // i.e. the command isn't already allow-listed — so the Stick only
+        // lights up for calls that genuinely need a decision.
+        "PermissionRequest" => gate_tool(&payload),
+        _ => {}
     }
 }
 
@@ -56,31 +65,42 @@ fn socket() -> Option<PathBuf> {
 }
 
 // ---------------------------------------------------------------------------
-// PreToolUse: gate a Bash call on the physical button.
+// PermissionRequest: gate a tool call on the physical button. Tool-agnostic —
+// the firmware just renders whatever `tool`/`hint` we send, so the matcher in
+// settings.json decides which tools reach here.
 // ---------------------------------------------------------------------------
 
-fn gate_bash(payload: &serde_json::Value) {
-    if payload["tool_name"].as_str().unwrap_or("") != "Bash" {
+fn gate_tool(payload: &serde_json::Value) {
+    let tool = payload["tool_name"].as_str().unwrap_or("");
+    if tool.is_empty() {
         return; // defer
     }
-    let command = payload["tool_input"]["command"].as_str().unwrap_or("");
-    let hint = command.lines().next().unwrap_or("").trim().to_string();
+    // One-line hint, picked from whichever input field best identifies the
+    // call: command (Bash), file_path (Edit/Write/Read), url (WebFetch)…
+    let input = &payload["tool_input"];
+    let raw = input["command"]
+        .as_str()
+        .or_else(|| input["file_path"].as_str())
+        .or_else(|| input["path"].as_str())
+        .or_else(|| input["url"].as_str())
+        .unwrap_or("");
+    let hint = raw.lines().next().unwrap_or("").trim().to_string();
 
-    match ask_device(&hint) {
-        Some("allow") => emit("allow", "Approved on Stick"),
-        Some("deny") => emit("deny", "Denied on Stick"),
+    match ask_device(tool, &hint) {
+        Some("allow") => emit("allow"),
+        Some("deny") => emit("deny"),
         _ => {} // defer: normal permission flow
     }
 }
 
 /// Round-trip one approval request to the daemon. None on any failure (defer).
-fn ask_device(hint: &str) -> Option<&'static str> {
+fn ask_device(tool: &str, hint: &str) -> Option<&'static str> {
     let mut stream = UnixStream::connect(socket()?).ok()?;
     stream.set_read_timeout(Some(REQUEST_TIMEOUT)).ok()?;
     stream.set_write_timeout(Some(Duration::from_secs(2))).ok()?;
 
     let req = serde_json::json!({
-        "tool": "Bash",
+        "tool": tool,
         "hint": hint,
         "timeout_ms": 45_000u64,
     })
@@ -99,12 +119,13 @@ fn ask_device(hint: &str) -> Option<&'static str> {
     }
 }
 
-fn emit(decision: &str, reason: &str) {
+fn emit(decision: &str) {
+    // PermissionRequest decisions use `decision.behavior` ("allow"/"deny"),
+    // unlike PreToolUse's `permissionDecision`.
     let out = serde_json::json!({
         "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": decision,
-            "permissionDecisionReason": reason,
+            "hookEventName": "PermissionRequest",
+            "decision": { "behavior": decision },
         }
     });
     println!("{out}");
