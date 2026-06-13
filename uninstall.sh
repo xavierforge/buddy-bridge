@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Remove the LaunchAgent and the buddy-gate PreToolUse hook. Leaves the built
-# binaries and your settings backups in place.
+# Remove the LaunchAgent and all buddy-gate hooks. Leaves the built binaries
+# and your settings backups in place.
 set -euo pipefail
 
 LABEL="com.buddy.bridged"
@@ -13,7 +13,8 @@ launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
 rm -f "$PLIST"
 
 if [ -f "$SETTINGS" ]; then
-  echo "==> Removing buddy-gate hooks (PreToolUse + Stop) from $SETTINGS"
+  echo "==> Removing buddy-gate hooks from $SETTINGS"
+  echo "    (PreToolUse, Stop, UserPromptSubmit, PostToolUse, SessionEnd)"
   cp "$SETTINGS" "$SETTINGS.bak.$(date +%s)"
   tmp="$(mktemp)"
   jq '
@@ -24,7 +25,8 @@ if [ -f "$SETTINGS" ]; then
                     | any(test("buddy-gate"))) | not) ]
         | (if (.hooks[k] | length) == 0 then del(.hooks[k]) else . end)
       else . end;
-    strip("PreToolUse") | strip("Stop")
+    strip("PreToolUse") | strip("Stop") | strip("UserPromptSubmit")
+    | strip("PostToolUse") | strip("SessionEnd")
   ' "$SETTINGS" > "$tmp" && mv "$tmp" "$SETTINGS"
 fi
 
