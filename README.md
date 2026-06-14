@@ -4,7 +4,7 @@
 > [Hardware Buddy BLE API](https://github.com/anthropics/claude-desktop-buddy),
 > extending it from desktop-app sessions to terminal Claude Code.
 
-<img width="500" alt="buddy-bridge" src="https://github.com/user-attachments/assets/a75d8b86-f989-4fa2-8579-529b5650397a" />
+<img width="500" alt="A vintage black-and-white photo of jazz drummer Buddy Rich playing drums, with an M5StickC Plus S3 (showing the buddy pet face) photoshopped over his head and a Bluetooth icon nearby — a visual pun on buddy-rich/buddy-bridge." src="https://github.com/user-attachments/assets/a75d8b86-f989-4fa2-8579-529b5650397a" />
 
 
 Push **terminal Claude Code** activity to a Claude desk-pet (M5StickC Plus
