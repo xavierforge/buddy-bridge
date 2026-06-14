@@ -17,6 +17,11 @@ The Claude desktop app already does this for sessions *it* runs — but a plain
 nothing reaches the Stick. This bridge fills that gap: it becomes the BLE
 central in the desktop app's place and feeds it from Claude Code hooks.
 
+https://github.com/user-attachments/assets/cdb2fd58-93c4-4315-945a-ec31459c1302
+
+> 🔊 Sound on! The music carries the demo.
+
+
 ## How it works
 
 ```
