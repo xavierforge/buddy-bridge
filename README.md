@@ -1,4 +1,9 @@
 # buddy-bridge
+
+> An unofficial host-side bridge built on top of Anthropic's
+> [Hardware Buddy BLE API](https://github.com/anthropics/claude-desktop-buddy),
+> extending it from desktop-app sessions to terminal Claude Code.
+
 <img width="500" alt="buddy-bridge" src="https://github.com/user-attachments/assets/a75d8b86-f989-4fa2-8579-529b5650397a" />
 
 
@@ -11,10 +16,6 @@ The Claude desktop app already does this for sessions *it* runs — but a plain
 `claude` in your terminal is a separate process the desktop app can't see, so
 nothing reaches the Stick. This bridge fills that gap: it becomes the BLE
 central in the desktop app's place and feeds it from Claude Code hooks.
-
-The Stick firmware is **not modified** — this speaks the same Hardware Buddy
-BLE protocol the desktop app does (see the firmware repo's
-[REFERENCE.md](https://github.com/xavierforge/claude-desktop-buddy-s3/blob/main/REFERENCE.md)).
 
 ## How it works
 
@@ -68,6 +69,23 @@ terminal y/n prompt. You're never blocked by missing hardware.
   process with a clean BLE stack, reconnecting in ~2s. No manual restart needed.
   (The `is_connected`-stays-true quirk is CoreBluetooth-specific; the ack-based
   liveness check works regardless of backend.)
+
+## Hardware
+
+This README assumes you're running the
+[claude-desktop-buddy-s3](https://github.com/xavierforge/claude-desktop-buddy-s3)
+firmware on an **M5StickC Plus S3** — the unofficial S3 port that adds the
+music engine the bridge drives. The bridge itself only speaks the standard
+Hardware Buddy BLE protocol (see
+[REFERENCE.md](https://github.com/xavierforge/claude-desktop-buddy-s3/blob/main/REFERENCE.md)),
+so it also works with:
+
+- The original [anthropics/claude-desktop-buddy](https://github.com/anthropics/claude-desktop-buddy)
+  on M5StickC Plus (no BGM/jingle — those need the S3 firmware's music engine)
+- Any other firmware that implements the same protocol
+
+The Stick firmware is **not modified** by the bridge — both sides speak the
+documented wire protocol.
 
 ## Platform support
 
